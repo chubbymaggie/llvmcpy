@@ -2,7 +2,6 @@ import unittest
 from llvmcpy import llvm
 
 module_source = """; ModuleID = 'example.c'
-source_filename = "example.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -30,14 +29,34 @@ define i32 @main(i32, i8**) {
 }
 """
 
-def get_function_number(ir):
+def load_module(ir):
     context = llvm.get_global_context()
     buffer = llvm.create_memory_buffer_with_memory_range_copy(ir,
                                                               len(ir),
                                                               "example")
-    module = context.parse_ir(buffer)
+    return context.parse_ir(buffer)
+
+def get_function_number(ir):
+    module = load_module(ir)
     return len(list(module.iter_functions()))
 
+def get_non_existing_basic_block(ir):
+    module = load_module(ir)
+    first_function = list(module.iter_functions())[0]
+    first_basic_block = list(first_function.iter_basic_blocks())[0]
+    first_basic_block.get_next().first_instruction()
+
 class TestSuite(unittest.TestCase):
-    def function_count(self):
+    def test_function_count(self):
         self.assertEqual(get_function_number(module_source), 3)
+
+    def test_null_ptr(self):
+        with self.assertRaises(RuntimeError):
+            get_non_existing_basic_block(module_source)
+
+    def test_resolve_enums(self):
+        assert llvm.Opcode[llvm.Switch] == 'Switch'
+        assert llvm.Opcode['Switch'] == llvm.Switch
+
+if __name__ == '__main__':
+    unittest.main()
